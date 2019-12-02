@@ -79,16 +79,6 @@ public:
                                                                    + (tcp_header->doff * 4));
         const uint32_t payload_len = ntohs(ip_header->tot_len) - (ip_header->ihl * 4) - (tcp_header->doff * 4);
 
-//        TcpData data = { eth_header->ether_shost,
-//                         eth_header->ether_dhost,
-//                         SockAddr(ntohl(ip_header->saddr), ntohs(tcp_header->source)),
-//                         SockAddr(ntohl(ip_header->daddr), ntohs(tcp_header->dest)),
-//                         std::vector<uint8_t>(payload, payload + payload_len),
-//                         bool(tcp_header->syn),
-//                         ntohl(tcp_header->seq),
-//                         ntohl(tcp_header->ack_seq)};
-
-        //std::unique_ptr<TcpData> ptr = std::make_unique<TcpData>(data);
         std::unique_ptr<TcpData> ptr = std::make_unique<TcpData>(eth_header->ether_shost,
                                                                  eth_header->ether_dhost,
                                                                  SockAddr(ntohl(ip_header->saddr), ntohs(tcp_header->source)),

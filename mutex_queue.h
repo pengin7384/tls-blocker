@@ -29,10 +29,10 @@ public:
         return move(que.front());
     }
 
-//    std::unique_ptr<T> &back() {
-//        std::lock_guard<std::mutex> guard(mtx);
-//        return que.back();
-//    }
+    T back() {
+        std::lock_guard<std::mutex> guard(mtx);
+        return move(que.back());
+    }
 
     void pop() {
         std::lock_guard<std::mutex> guard(mtx);

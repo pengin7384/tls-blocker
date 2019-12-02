@@ -3,6 +3,7 @@
 #include <memory>
 #include <mutex>
 
+/* TODO: Seperate with main thread */
 class LogManager {
     /* Singleton */
     static std::unique_ptr<LogManager> instance;

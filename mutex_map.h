@@ -30,6 +30,11 @@ public:
         return mp.end();
     }
 
+    size_t size() {
+        std::lock_guard<std::mutex> guard(mtx);
+        return mp.size();
+    }
+
 
 
 
