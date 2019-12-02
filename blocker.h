@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <string>
 #include "network_manager.h"
 
@@ -13,6 +14,12 @@ public:
     }
 
     void start() {
+        LogManager::getInstance().log("start\n");
+
+        while (true) {
+            std::unique_ptr<TcpData> ptr = net_mng.recv();
+
+        }
 
     }
 
