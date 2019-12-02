@@ -7,28 +7,32 @@
 
 template <typename T>
 class MutexQueue {
-    std::queue<std::unique_ptr<T>> que;
+    std::queue<T> que;
     std::mutex mtx;
 
 public:
-    void push(std::unique_ptr<T> &ptr) {
+    MutexQueue() {
+
+    }
+
+    void push(T ptr) {
         if (ptr == nullptr) {
             LogManager::getInstance().log("MutexQueue : Push nullptr");
             return;
         }
         std::lock_guard<std::mutex> guard(mtx);
-        que.push(move(ptr));
+        que.push(std::move(ptr));
     }
 
-    std::unique_ptr<T> &front() {
+    T front() {
         std::lock_guard<std::mutex> guard(mtx);
-        return que.front();
+        return move(que.front());
     }
 
-    std::unique_ptr<T> &back() {
-        std::lock_guard<std::mutex> guard(mtx);
-        return que.back();
-    }
+//    std::unique_ptr<T> &back() {
+//        std::lock_guard<std::mutex> guard(mtx);
+//        return que.back();
+//    }
 
     void pop() {
         std::lock_guard<std::mutex> guard(mtx);

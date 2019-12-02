@@ -13,6 +13,10 @@ HEADERS += \
     blocker.h \
     ether_addr.h \
     log_manager.h \
+    mutex_map.h \
     mutex_queue.h \
+    network_header.h \
     network_manager.h \
+    session.h \
+    session_manager.h \
     sock_addr.h
