@@ -32,6 +32,8 @@ class Session {
     std::bitset<5> flag_set;
     int64_t target_len;
 
+    uint32_t cnt;
+
 public:
     Session() = delete;
 
@@ -44,6 +46,7 @@ public:
         src_sock = ptr.get()->src_sock;
         start_seq = ptr.get()->tcp_seq;
         target_len = -1;
+        cnt = 0;
     }
 
     template <typename T>
@@ -114,7 +117,7 @@ public:
         } else if (static_cast<int64_t>(payload.size()) < target_len) {
             return Result::success;
         } else if (static_cast<int64_t>(payload.size()) == target_len) {
-            LogManager::getInstance().log("Reassembled");
+            //LogManager::getInstance().log("Reassembled");
             return Result::complete;
         } else {
             LogManager::getInstance().log("Error: RecvLen > TargetLen");
@@ -123,15 +126,57 @@ public:
 
     }
 
+    /* TODO: change style */
+    std::string getServerName() {
+        uint32_t len = payload[5 + 1] * 256 * 256 + payload[5 + 2] * 256 + payload[5 + 3];
+        uint32_t index = 0;
+
+        /* Session Length */
+        index += 39 + payload[5 + 38];
+
+        /* Cipher Suites Length */
+        index += 2 + payload[5 + index] * 256 + payload[5 + index + 1];
+
+        /* Compression Methods Length */
+        index += 1 + payload[5 + index];
+
+        /* Extensions Length */
+        index += 2;
+
+        while (index < len) {
+            /* SNI */
+            if (payload[5 + index] == 0x00 && payload[5 + index + 1] == 0x00) {
+                uint16_t serv_name_len = payload[5 + index + 7] * 256 + payload[5 + index + 8];
+
+                std::string serv_name = "";
+                for (uint16_t i = 0; i < serv_name_len; i++) {
+                    serv_name += static_cast<char>(payload[5 + index + 9 + i]);
+                }
+                return serv_name;
+            }
+
+            index += 2;
+
+            index += 2 + payload[5 + index] * 256 + payload[5 + index + 1];
+        }
+        return "";
+    }
+
     void process() {
-        //callback(src_sock);
+
         while (true) {
+
             if (die_flag.load()) {
                 callback(src_sock);
                 break;
             }
 
-            /* TODO: Timeout */
+            /* TODO: Change cnt to time */
+            if (cnt++ > 100000000) {
+                LogManager::getInstance().log("Time out");
+                kill();
+            }
+
             if (que.get()->size() == 0) {
                 continue;
             }
@@ -141,11 +186,16 @@ public:
             Result res = reassemble(move(data));
 
             if (res == Result::complete) {
-                break;
-
-            } else if (res == Result::ignore || res == Result::error) {
-                LogManager::getInstance().log("ignore || error");
-                break;
+                //LogManager::getInstance().log("complete");
+                std::string server_name = getServerName();
+                printf("server name:(%s)\n", server_name.c_str());
+                kill();
+            } else if (res == Result::ignore) {
+                //LogManager::getInstance().log("ignore");
+                kill();
+            } else if (res == Result::error) {
+                LogManager::getInstance().log("error");
+                kill();
             } else if (res == Result::success) {
 
             }

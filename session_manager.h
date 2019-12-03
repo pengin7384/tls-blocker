@@ -20,6 +20,7 @@ public:
         if (it != ses_map.get()->end()) {
             ses_map.get()->erase(it); // If iterator is deleted then error?
         }
+        printf("Session : (%u)\n", ses_map.get()->size());
     }
 
     void add(std::unique_ptr<TcpData> data) {
@@ -35,6 +36,7 @@ public:
 
             std::shared_ptr<Session> ses = std::make_shared<Session>(std::move(data),
                                                                      std::bind(&SessionManager::callbackErase, this, std::placeholders::_1));
+
             ses_map.get()->insert(src_addr, ses);
 
             /* Create thread */
