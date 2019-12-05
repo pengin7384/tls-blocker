@@ -5,22 +5,22 @@ CONFIG -= qt
 LIBS += -L/usr/local/lib -pthread -lssl -lcrypto -lpcap
 
 SOURCES += \
-        check_manager.cpp \
-        log_manager.cpp \
-        main.cpp \
-        network_manager.cpp
+        src/check_manager.cpp \
+        src/log_manager.cpp \
+        src/main.cpp \
+        src/network_manager.cpp
 
 HEADERS += \
-    blocker.h \
-    check_manager.h \
-    ether_addr.h \
-    log_manager.h \
-    mutex_map.h \
-    mutex_queue.h \
-    network_header.h \
-    network_manager.h \
-    rst_packet.h \
-    session.h \
-    session_manager.h \
-    singleton.h \
-    sock_addr.h
+    src/blocker.h \
+    src/check_manager.h \
+    src/ether_addr.h \
+    src/log_manager.h \
+    src/mutex_map.h \
+    src/mutex_queue.h \
+    src/network_header.h \
+    src/network_manager.h \
+    src/rst_packet.h \
+    src/session.h \
+    src/session_manager.h \
+    src/singleton.h \
+    src/sock_addr.h
