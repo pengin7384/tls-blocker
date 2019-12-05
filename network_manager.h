@@ -1,4 +1,8 @@
 #pragma once
+#include "log_manager.h"
+#include "network_header.h"
+#include "rst_packet.h"
+#include "singleton.h"
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -9,10 +13,6 @@
 #include <pcap/pcap.h>
 #include <string>
 #include <vector>
-#include "log_manager.h"
-#include "network_header.h"
-#include "rst_packet.h"
-#include "singleton.h"
 
 typedef struct ether_header EthernetHeader;
 typedef struct iphdr IPHeader;

@@ -1,9 +1,8 @@
 #pragma once
-#include <vector>
 #include "ether_addr.h"
 #include "log_manager.h"
 #include "sock_addr.h"
-
+#include <vector>
 
 struct TcpData {
     EtherAddr src_ether;

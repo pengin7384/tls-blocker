@@ -1,7 +1,8 @@
 #pragma once
+#include "singleton.h"
 #include <string>
 #include <unordered_set>
-#include "singleton.h"
+
 
 class CheckManager : public Singleton<CheckManager> {
     std::unordered_set<std::string> block_list;

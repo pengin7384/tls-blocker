@@ -1,11 +1,11 @@
 #pragma once
+#include "network_header.h"
 #include <cstring>
 #include <memory>
 #include <netinet/ether.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
-#include "network_header.h"
 
 typedef struct ether_header EthernetHeader;
 typedef struct iphdr IPHeader;

@@ -1,5 +1,7 @@
 #pragma once
-
+#include "mutex_queue.h"
+#include "network_header.h"
+#include "network_manager.h"
 #include <atomic>
 #include <bitset>
 #include <cstdint>
@@ -8,9 +10,6 @@
 #include <set>
 #include <string>
 #include <vector>
-#include "mutex_queue.h"
-#include "network_header.h"
-#include "network_manager.h"
 
 #define BUF_SIZE 1600
 

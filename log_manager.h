@@ -1,8 +1,9 @@
 #pragma once
+#include "singleton.h"
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include "singleton.h"
+
 
 /* TODO: Seperate with main thread */
 class LogManager : public Singleton<LogManager> {

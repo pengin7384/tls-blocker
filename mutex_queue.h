@@ -1,9 +1,9 @@
 #pragma once
+#include "log_manager.h"
 #include <iostream>
 #include <queue>
 #include <mutex>
 #include <memory>
-#include "log_manager.h"
 
 template <typename T>
 class MutexQueue {

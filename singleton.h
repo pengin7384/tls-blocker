@@ -2,7 +2,6 @@
 #include <memory>
 #include <mutex>
 
-
 template <typename T>
 class Singleton {
     static std::unique_ptr<T> instance;
