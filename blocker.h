@@ -2,6 +2,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include "check_manager.h"
 #include "network_manager.h"
 #include "session_manager.h"
 
@@ -14,6 +15,12 @@ public:
         //: net_mng(in, out)
     {
         NetworkManager::getInstance().setInterface(in, out);
+
+        // 싱글톤 테스트해야함!
+        CheckManager::getInstance().test();
+        CheckManager::getInstance().test();
+        CheckManager::getInstance().test();
+        CheckManager::getInstance().test();
 
 
     }
