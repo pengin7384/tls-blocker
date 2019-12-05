@@ -17,6 +17,7 @@ HEADERS += \
     mutex_queue.h \
     network_header.h \
     network_manager.h \
+    rst_packet.h \
     session.h \
     session_manager.h \
     sock_addr.h

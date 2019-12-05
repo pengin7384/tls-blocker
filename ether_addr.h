@@ -11,6 +11,11 @@
 typedef struct EtherAddr
 {
     uint8_t host[ETH_ALEN];
+    EtherAddr()
+    {
+
+    }
+
     EtherAddr(const uint8_t *host)
     {
         setHost(host);

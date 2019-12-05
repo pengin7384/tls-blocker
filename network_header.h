@@ -4,6 +4,7 @@
 #include "log_manager.h"
 #include "sock_addr.h"
 
+
 struct TcpData {
     EtherAddr src_ether;
     EtherAddr dst_ether;
@@ -33,7 +34,6 @@ struct TcpData {
     {
 
     }
-
-
-
 };
+
+

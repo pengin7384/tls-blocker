@@ -20,18 +20,30 @@ public:
         if (it != ses_map.get()->end()) {
             ses_map.get()->erase(it); // If iterator is deleted then error?
         }
-        printf("Session : (%u)\n", ses_map.get()->size());
     }
 
     void add(std::unique_ptr<TcpData> data) {
 
         if (data.get()->tcp_syn) {
+//            printf("size:%ld\n", ses_map->size());
+//            static int cnt = 0;
+//            if (cnt <= 5) {
+//                cnt++;
+//            } else {
+
+//                return;
+//            }
             SockAddr src_addr = data.get()->src_sock;
             auto it = ses_map.get()->find(src_addr);
 
             if (it != ses_map.get()->end()) {
                 /* TODO: Need to kill thread */
                 it->second.get()->kill();
+
+                /* TODO: Need to delete already existed session from ses_map */
+                ses_map.get()->erase(it);
+
+                LogManager::getInstance().log("already!");
             }
 
             std::shared_ptr<Session> ses = std::make_shared<Session>(std::move(data),

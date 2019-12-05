@@ -10,6 +10,7 @@
 #include <vector>
 #include "mutex_queue.h"
 #include "network_header.h"
+#include "network_manager.h"
 
 #define BUF_SIZE 1600
 
@@ -24,6 +25,9 @@ class Session {
 
     funcErase callback;
     SockAddr src_sock;
+    SockAddr dst_sock;
+    EtherAddr src_ether;
+    EtherAddr dst_ether;
 
     /* Reassemble */
     uint32_t start_seq;
@@ -44,9 +48,16 @@ public:
         que.reset(new MutexQueue<std::unique_ptr<TcpData>>(), freeQueue<std::unique_ptr<TcpData>>);
         this->callback = callback;
         src_sock = ptr.get()->src_sock;
+        dst_sock = ptr.get()->dst_sock;
+        src_ether = ptr.get()->src_ether;
+        dst_ether = ptr.get()->dst_ether;
         start_seq = ptr.get()->tcp_seq;
         target_len = -1;
         cnt = 0;
+    }
+
+    ~Session() {
+        //LogManager::getInstance().log("session deleted");
     }
 
     template <typename T>
@@ -189,6 +200,10 @@ public:
                 //LogManager::getInstance().log("complete");
                 std::string server_name = getServerName();
                 printf("server name:(%s)\n", server_name.c_str());
+                if (server_name == "test.pol4.dev" || server_name == "xvideos.com" || server_name == "www.xvideos.com") {
+                    LogManager::getInstance().log("Block");
+                    NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether, dst_ether, start_seq, last_ack, static_cast<uint16_t>(payload.size()));
+                }
                 kill();
             } else if (res == Result::ignore) {
                 //LogManager::getInstance().log("ignore");
@@ -204,7 +219,6 @@ public:
 
         }
     }
-
 
     void kill() {
         die_flag.store(true);

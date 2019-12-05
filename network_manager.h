@@ -11,20 +11,43 @@
 #include <vector>
 #include "log_manager.h"
 #include "network_header.h"
+#include "rst_packet.h"
 
 typedef struct ether_header EthernetHeader;
 typedef struct iphdr IPHeader;
 typedef struct tcphdr TCPHeader;
 
 class NetworkManager {
+    /* Singleton */
+    static std::unique_ptr<NetworkManager> instance;
+    static std::once_flag once_flag;
+    NetworkManager() = default;
+    NetworkManager(const NetworkManager&) = delete;
+    NetworkManager& operator=(const NetworkManager&) = delete;
+
     char err_buf[PCAP_ERRBUF_SIZE];
     std::shared_ptr<pcap_t> in_handle;
     std::shared_ptr<pcap_t> out_handle;
     std::mutex in_mtx;
     std::mutex out_mtx;
+    RstPacket rst;
+    EtherAddr out_ether;
 
 public:
-    NetworkManager(std::string in, std::string out)
+    /* Singleton */
+    static NetworkManager& getInstance()
+    {
+        std::call_once(NetworkManager::once_flag, []() {
+            instance.reset(new NetworkManager);
+        });
+        return *(instance.get());
+    }
+
+    ~NetworkManager() {
+
+    }
+
+    void setInterface(std::string in, std::string out)
     {
         /* Open pcap handle */
         if (in.empty() || out.empty()) {
@@ -39,12 +62,19 @@ public:
             LogManager::getInstance().log("Error while opening handle");
             return;
         }
-    }
 
-    ~NetworkManager() = default;
+        out_ether = EtherAddr(out);
+        rst.setSrcEther(out_ether);
+    }
 
     std::unique_ptr<TcpData> recv() {
         std::lock_guard<std::mutex> guard(in_mtx);
+
+        if (!in_handle) {
+            LogManager::getInstance().log("Error : Input Interface is nullptr");
+            return nullptr;
+        }
+
         pcap_pkthdr *header = nullptr;
         const EthernetHeader *eth_header = nullptr;
         const IPHeader *ip_header = nullptr;
@@ -90,8 +120,40 @@ public:
         return ptr;
     }
 
-    void send() {
+    void sendRstPacket(const SockAddr &src_sock, const SockAddr &dst_sock, const EtherAddr &src_ether, const EtherAddr &dst_ether, uint32_t start_seq, uint32_t last_ack, uint16_t len) {
         std::lock_guard<std::mutex> guard(out_mtx);
+
+        if (!out_handle) {
+            LogManager::getInstance().log("Error : Output Interface is nullptr");
+            return;
+        }
+
+        /* Server */
+        rst.change(src_sock, dst_sock, dst_ether, start_seq + 1 + len);
+//        LogManager::getInstance().log("Client -> server");
+//        for (size_t i = 0; i < sizeof(Rst); i++) {
+//            if (i % 16 == 0 && i != 0) {
+//                puts("");
+//            }
+//            printf("%02x ", rst.getRaw()[i]);
+//        }
+//        puts("\n");
+
+        pcap_sendpacket(out_handle.get(), rst.getRaw(), sizeof(Rst));
+        rst.change(dst_sock, src_sock, src_ether, last_ack);
+//        LogManager::getInstance().log("Server -> client");
+//        for (size_t i = 0; i < sizeof(Rst); i++) {
+//            if (i % 16 == 0 && i != 0) {
+//                puts("");
+//            }
+//            printf("%02x ", rst.getRaw()[i]);
+//        }
+//        puts("\n");
+
+
+        pcap_sendpacket(out_handle.get(), rst.getRaw(), sizeof(Rst));
+//        LogManager::getInstance().log("RST Sent");
+
     }
 };
 
