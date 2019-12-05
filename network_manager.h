@@ -12,19 +12,13 @@
 #include "log_manager.h"
 #include "network_header.h"
 #include "rst_packet.h"
+#include "singleton.h"
 
 typedef struct ether_header EthernetHeader;
 typedef struct iphdr IPHeader;
 typedef struct tcphdr TCPHeader;
 
-class NetworkManager {
-    /* Singleton */
-    static std::unique_ptr<NetworkManager> instance;
-    static std::once_flag once_flag;
-    NetworkManager() = default;
-    NetworkManager(const NetworkManager&) = delete;
-    NetworkManager& operator=(const NetworkManager&) = delete;
-
+class NetworkManager : public Singleton<NetworkManager>  {
     char err_buf[PCAP_ERRBUF_SIZE];
     std::shared_ptr<pcap_t> in_handle;
     std::shared_ptr<pcap_t> out_handle;
@@ -34,15 +28,6 @@ class NetworkManager {
     EtherAddr out_ether;
 
 public:
-    /* Singleton */
-    static NetworkManager& getInstance()
-    {
-        std::call_once(NetworkManager::once_flag, []() {
-            instance.reset(new NetworkManager);
-        });
-        return *(instance.get());
-    }
-
     ~NetworkManager() {
 
     }
