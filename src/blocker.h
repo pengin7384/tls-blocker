@@ -10,16 +10,13 @@ class Blocker {
     SessionManager ses_mng;
 
 public:
-    Blocker(std::string in, std::string out)
-    {
+    Blocker(std::string file, std::string in, std::string out) {
         NetworkManager::getInstance().setInterface(in, out);
 
-        CheckManager::getInstance().test();
+        CheckManager::getInstance().update(file);
     }
 
     void start() {
-        LogManager::getInstance().log("start");
-
         while (true) {
             std::unique_ptr<TcpData> data = NetworkManager::getInstance().recv();
 

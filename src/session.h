@@ -1,4 +1,5 @@
 #pragma once
+#include "check_manager.h"
 #include "mutex_queue.h"
 #include "network_header.h"
 #include "network_manager.h"
@@ -13,7 +14,14 @@
 
 #define BUF_SIZE 1600
 
-enum class Result { complete, success, error, ignore };
+/**
+ * @brief The Result enum
+ * 'complete'   : Finished reassembling
+ * 'wait'       : Not completed
+ * 'error'      : Error while reassembling
+ * 'ignore'     : Not a target packet
+ */
+enum class Result { complete, wait, error, ignore };
 
 class Session {
     typedef std::function<void(SockAddr)> funcErase;
@@ -43,7 +51,6 @@ public:
     Session(std::unique_ptr<TcpData> ptr, funcErase callback) : die_flag(false)
     {
         payload.reserve(BUF_SIZE);
-        //payload.assign(BUF_SIZE, 0);
         que.reset(new MutexQueue<std::unique_ptr<TcpData>>(), freeQueue<std::unique_ptr<TcpData>>);
         this->callback = callback;
         src_sock = ptr.get()->src_sock;
@@ -56,7 +63,6 @@ public:
     }
 
     ~Session() {
-        //LogManager::getInstance().log("session deleted");
     }
 
     template <typename T>
@@ -72,14 +78,13 @@ public:
     Result reassemble(std::unique_ptr<TcpData> data) {
 
         if (data.get()->payload.size() == 0) {
-            return Result::success;
+            return Result::wait;
         }
 
         uint32_t rel_seq_num = data.get()->tcp_seq - start_seq;
         uint32_t data_index = rel_seq_num - 1;
 
         if ((data_index + data->payload.size()) > payload.size()) {
-            //LogManager::getInstance().log("Payload resized");
             payload.resize(payload.size() + data->payload.size());
         }
 
@@ -87,7 +92,7 @@ public:
         auto it = seq_set.find(data.get()->tcp_seq);
         if (it != seq_set.end()) {
             LogManager::getInstance().log("Already reassembled");
-            return Result::success;
+            return Result::wait;
         }
 
         seq_set.insert(data.get()->tcp_seq);
@@ -123,11 +128,10 @@ public:
         }
 
         if (target_len == -1) {
-            return Result::success;
+            return Result::wait;
         } else if (static_cast<int64_t>(payload.size()) < target_len) {
-            return Result::success;
+            return Result::wait;
         } else if (static_cast<int64_t>(payload.size()) == target_len) {
-            //LogManager::getInstance().log("Reassembled");
             return Result::complete;
         } else {
             LogManager::getInstance().log("Error: RecvLen > TargetLen");
@@ -182,7 +186,7 @@ public:
             }
 
             /* TODO: Change cnt to time */
-            if (cnt++ > 100000000) {
+            if (cnt++ > 200000000) {
                 LogManager::getInstance().log("Time out");
                 kill();
             }
@@ -198,10 +202,13 @@ public:
             if (res == Result::complete) {
                 //LogManager::getInstance().log("complete");
                 std::string server_name = getServerName();
-                printf("server name:(%s)\n", server_name.c_str());
-                if (server_name == "test.pol4.dev" || server_name == "xvideos.com" || server_name == "www.xvideos.com") {
-                    LogManager::getInstance().log("Block");
-                    NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether, dst_ether, start_seq, last_ack, static_cast<uint16_t>(payload.size()));
+
+                if (CheckManager::getInstance().isBlocked(server_name)) {
+
+                    NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether,
+                                                                dst_ether, start_seq, last_ack,
+                                                                static_cast<uint16_t>(payload.size()));
+                    LogManager::getInstance().log("Server name : (" + server_name + ") Blocked");
                 }
                 kill();
             } else if (res == Result::ignore) {
@@ -210,12 +217,9 @@ public:
             } else if (res == Result::error) {
                 LogManager::getInstance().log("error");
                 kill();
-            } else if (res == Result::success) {
+            } else if (res == Result::wait) {
 
             }
-
-            // If ignore || error then drop session
-
         }
     }
 
