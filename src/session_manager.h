@@ -9,6 +9,7 @@
 
 class SessionManager {
     std::shared_ptr<MutexMap<SockAddr, std::shared_ptr<Session>>> ses_map;
+    uint64_t drop_cnt = 0;
 
 public:
     SessionManager() {
@@ -24,7 +25,15 @@ public:
 
     void add(std::unique_ptr<TcpData> data) {
 
+        //printf("map_size:%lu\n", ses_map.get()->size());
+
         if (data.get()->tcp_syn) {
+            if (ses_map.get()->size() > 200) {
+                drop_cnt++;
+                printf("drop:%lu\n", drop_cnt);
+                return;
+            }
+           // printf("syn:(%u)\n", data.get()->src_sock.port);
 //            printf("size:%ld\n", ses_map->size());
 //            static int cnt = 0;
 //            if (cnt <= 5) {
@@ -49,7 +58,7 @@ public:
             std::shared_ptr<Session> ses = std::make_shared<Session>(std::move(data),
                                                                      std::bind(&SessionManager::callbackErase, this, std::placeholders::_1));
 
-            ses_map.get()->insert(src_addr, ses);
+            ses_map.get()->insert(src_addr, ses); 
 
             /* Create thread */
             std::thread thr { &Session::process, ses };
@@ -68,6 +77,9 @@ public:
 
 
         }
+
+
+
 
     }
 

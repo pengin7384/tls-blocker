@@ -53,7 +53,7 @@ public:
     }
 
     std::unique_ptr<TcpData> recv() {
-        std::lock_guard<std::mutex> guard(in_mtx);
+        //std::lock_guard<std::mutex> guard(in_mtx);
 
         if (!in_handle) {
             LogManager::getInstance().log("Error : Input Interface is nullptr");
@@ -66,6 +66,7 @@ public:
         const uint8_t *packet = nullptr;
 
         for (int res = 0; res == 0;) {
+            std::lock_guard<std::mutex> guard(in_mtx);
             res = pcap_next_ex(in_handle.get(), &header, &packet);
             if (res < 0)
                 return nullptr;
@@ -106,7 +107,7 @@ public:
     }
 
     void sendRstPacket(const SockAddr &src_sock, const SockAddr &dst_sock, const EtherAddr &src_ether, const EtherAddr &dst_ether, uint32_t start_seq, uint32_t last_ack, uint16_t len) {
-        std::lock_guard<std::mutex> guard(out_mtx);
+        //std::lock_guard<std::mutex> guard(out_mtx);
 
         if (!out_handle) {
             LogManager::getInstance().log("Error : Output Interface is nullptr");

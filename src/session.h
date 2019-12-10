@@ -14,6 +14,7 @@
 
 #define BUF_SIZE 1600
 
+
 /**
  * @brief The Result enum
  * 'complete'   : Finished reassembling
@@ -45,6 +46,8 @@ class Session {
 
     uint32_t cnt;
 
+    int64_t test_cnt;
+
 public:
     Session() = delete;
 
@@ -60,6 +63,7 @@ public:
         start_seq = ptr.get()->tcp_seq;
         target_len = -1;
         cnt = 0;
+        test_cnt = 0;
     }
 
     ~Session() {
@@ -84,14 +88,15 @@ public:
         uint32_t rel_seq_num = data.get()->tcp_seq - start_seq;
         uint32_t data_index = rel_seq_num - 1;
 
-        if (target_len != -1
-                && (data_index + data->payload.size()) >= static_cast<uint64_t>(target_len)) {
-
-        }
 
         if ((data_index + data->payload.size()) > payload.size()) {
-            payload.resize(payload.size() + data->payload.size());
-            printf("payload_size:%lu, last_index:%lu\n", payload.size(), data_index + data->payload.size() - 1);
+            if((data_index + payload.size() + data->payload.size()) > 8200) {
+                //printf("No\n");
+                return Result::ignore;
+            }
+            //payload.resize(payload.size() + data->payload.size());
+            payload.resize(data_index + payload.size() + data->payload.size());
+            //printf("payload_size:%lu, last_index:%lu, test_cnt:%u\n", payload.size(), data_index + data->payload.size() - 1, test_cnt);
         }
 
 
@@ -107,6 +112,7 @@ public:
         for (size_t i = 0; i < data.get()->payload.size(); i++) {
             payload.at(data_index + i) = data.get()->payload.at(i);
         }
+        test_cnt += data.get()->payload.size();
 
         /* Flag */
         size_t index = data_index;
@@ -135,14 +141,27 @@ public:
 
         if (target_len == -1) {
             return Result::wait;
-        } else if (static_cast<int64_t>(payload.size()) < target_len) {
+        } else if (test_cnt < target_len) {
             return Result::wait;
-        } else if (static_cast<int64_t>(payload.size()) == target_len) {
+        } else if (test_cnt == target_len) {
             return Result::complete;
         } else {
+
             LogManager::getInstance().log("Error: RecvLen > TargetLen");
+            printf("Error: recv:%ld, target:%ld\n", test_cnt, target_len);
             return Result::error;
         }
+
+//        if (target_len == -1) {
+//            return Result::wait;
+//        } else if (static_cast<int64_t>(payload.size()) < target_len) {
+//            return Result::wait;
+//        } else if (static_cast<int64_t>(payload.size()) == target_len) {
+//            return Result::complete;
+//        } else {
+//            LogManager::getInstance().log("Error: RecvLen > TargetLen");
+//            return Result::error;
+//        }
 
     }
 
@@ -192,10 +211,20 @@ public:
             }
 
             /* TODO: Change cnt to time */
-            if (cnt++ > 200000000) {
+            if (cnt++ > 20000000) {
                 LogManager::getInstance().log("Time out");
                 kill();
+                continue;
             }
+
+//            /************************/
+//            NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether,
+//                                                        dst_ether, start_seq, last_ack,
+//                                                        static_cast<uint16_t>(payload.size()));
+//            printf("blocked(%u)\n", src_sock.port);
+//            kill();
+//            continue;
+//            /************************/
 
             if (que.get()->size() == 0) {
                 continue;
@@ -215,7 +244,10 @@ public:
                                                                 dst_ether, start_seq, last_ack,
                                                                 static_cast<uint16_t>(payload.size()));
                     LogManager::getInstance().log("Server name : (" + server_name + ") Blocked");
+                } else {
+                    LogManager::getInstance().log("Server name : (" + server_name + ") is not Blocked");
                 }
+
                 kill();
             } else if (res == Result::ignore) {
                 //LogManager::getInstance().log("ignore");
