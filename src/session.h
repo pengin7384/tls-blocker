@@ -84,8 +84,14 @@ public:
         uint32_t rel_seq_num = data.get()->tcp_seq - start_seq;
         uint32_t data_index = rel_seq_num - 1;
 
+        if (target_len != -1
+                && (data_index + data->payload.size()) >= static_cast<uint64_t>(target_len)) {
+
+        }
+
         if ((data_index + data->payload.size()) > payload.size()) {
             payload.resize(payload.size() + data->payload.size());
+            printf("payload_size:%lu, last_index:%lu\n", payload.size(), data_index + data->payload.size() - 1);
         }
 
 

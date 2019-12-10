@@ -2,7 +2,7 @@ TEMPLATE = app
 CONFIG += console c++14
 CONFIG -= app_bundle
 CONFIG -= qt
-LIBS += -L/usr/local/lib -pthread -lssl -lcrypto -lpcap
+LIBS += -L/usr/local/lib -pthread -lpcap
 
 SOURCES += \
         src/check_manager.cpp \
