@@ -20,6 +20,7 @@ typedef struct tcphdr TCPHeader;
 
 class NetworkManager : public Singleton<NetworkManager>  {
     char err_buf[PCAP_ERRBUF_SIZE];
+    const char *tcp_ssl_filter = "ip proto TCP and dst port 443";
     std::shared_ptr<pcap_t> in_handle;
     std::shared_ptr<pcap_t> out_handle;
     std::mutex in_mtx;
@@ -43,10 +44,24 @@ public:
         in_handle.reset(pcap_open_live(in.c_str(), BUFSIZ, 1, 1, err_buf), pcap_close);
         out_handle.reset(pcap_open_live(out.c_str(), BUFSIZ, 1, 1, err_buf), pcap_close);
 
-        if (in_handle == nullptr || out_handle == nullptr) {
+        if (in_handle.get() == nullptr || out_handle.get() == nullptr) {
             LogManager::getInstance().log("Error while opening handle");
             return;
         }
+
+        /* Filter */
+        bpf_program bpf;
+        if (pcap_compile(in_handle.get(), &bpf, tcp_ssl_filter, 1, 0) < 0) {
+            LogManager::getInstance().log("Error while compiling filter");
+            return;
+        }
+
+        if (pcap_setfilter(in_handle.get(), &bpf) < 0) {
+            LogManager::getInstance().log("Error while applying filter");
+            return;
+        }
+
+        /**********/
 
         out_ether = EtherAddr(out);
         rst.setSrcEther(out_ether);
@@ -107,38 +122,19 @@ public:
     }
 
     void sendRstPacket(const SockAddr &src_sock, const SockAddr &dst_sock, const EtherAddr &src_ether, const EtherAddr &dst_ether, uint32_t start_seq, uint32_t last_ack, uint16_t len) {
-        //std::lock_guard<std::mutex> guard(out_mtx);
+        std::lock_guard<std::mutex> guard(out_mtx);
 
-        if (!out_handle) {
-            LogManager::getInstance().log("Error : Output Interface is nullptr");
-            return;
-        }
+//        if (!out_handle) {
+//            LogManager::getInstance().log("Error : Output Interface is nullptr");
+//            return;
+//        }
 
         /* Server */
         rst.change(src_sock, dst_sock, dst_ether, start_seq + 1 + len);
-//        LogManager::getInstance().log("Client -> server");
-//        for (size_t i = 0; i < sizeof(Rst); i++) {
-//            if (i % 16 == 0 && i != 0) {
-//                puts("");
-//            }
-//            printf("%02x ", rst.getRaw()[i]);
-//        }
-//        puts("\n");
-
         pcap_sendpacket(out_handle.get(), rst.getRaw(), sizeof(Rst));
+
         rst.change(dst_sock, src_sock, src_ether, last_ack);
-//        LogManager::getInstance().log("Server -> client");
-//        for (size_t i = 0; i < sizeof(Rst); i++) {
-//            if (i % 16 == 0 && i != 0) {
-//                puts("");
-//            }
-//            printf("%02x ", rst.getRaw()[i]);
-//        }
-//        puts("\n");
-
-
         pcap_sendpacket(out_handle.get(), rst.getRaw(), sizeof(Rst));
-//        LogManager::getInstance().log("RST Sent");
 
     }
 };

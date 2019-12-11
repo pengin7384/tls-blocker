@@ -5,11 +5,13 @@
 #include "network_manager.h"
 #include <atomic>
 #include <bitset>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 #define BUF_SIZE 1600
@@ -46,7 +48,7 @@ class Session {
 
     uint32_t cnt;
 
-    int64_t test_cnt;
+    int64_t recv_cnt;
 
 public:
     Session() = delete;
@@ -63,7 +65,7 @@ public:
         start_seq = ptr.get()->tcp_seq;
         target_len = -1;
         cnt = 0;
-        test_cnt = 0;
+        recv_cnt = 0;
     }
 
     ~Session() {
@@ -90,13 +92,11 @@ public:
 
 
         if ((data_index + data->payload.size()) > payload.size()) {
-            if((data_index + payload.size() + data->payload.size()) > 8200) {
-                //printf("No\n");
+            size_t tot_size = data_index + payload.size() + data->payload.size();
+            if(tot_size > 8200) {
                 return Result::ignore;
             }
-            //payload.resize(payload.size() + data->payload.size());
-            payload.resize(data_index + payload.size() + data->payload.size());
-            //printf("payload_size:%lu, last_index:%lu, test_cnt:%u\n", payload.size(), data_index + data->payload.size() - 1, test_cnt);
+            payload.resize(tot_size);
         }
 
 
@@ -112,7 +112,7 @@ public:
         for (size_t i = 0; i < data.get()->payload.size(); i++) {
             payload.at(data_index + i) = data.get()->payload.at(i);
         }
-        test_cnt += data.get()->payload.size();
+        recv_cnt += data.get()->payload.size();
 
         /* Flag */
         size_t index = data_index;
@@ -141,27 +141,14 @@ public:
 
         if (target_len == -1) {
             return Result::wait;
-        } else if (test_cnt < target_len) {
+        } else if (recv_cnt < target_len) {
             return Result::wait;
-        } else if (test_cnt == target_len) {
+        } else if (recv_cnt == target_len) {
             return Result::complete;
         } else {
-
             LogManager::getInstance().log("Error: RecvLen > TargetLen");
-            printf("Error: recv:%ld, target:%ld\n", test_cnt, target_len);
             return Result::error;
         }
-
-//        if (target_len == -1) {
-//            return Result::wait;
-//        } else if (static_cast<int64_t>(payload.size()) < target_len) {
-//            return Result::wait;
-//        } else if (static_cast<int64_t>(payload.size()) == target_len) {
-//            return Result::complete;
-//        } else {
-//            LogManager::getInstance().log("Error: RecvLen > TargetLen");
-//            return Result::error;
-//        }
 
     }
 
@@ -204,7 +191,6 @@ public:
     void process() {
 
         while (true) {
-
             if (die_flag.load()) {
                 callback(src_sock);
                 break;
@@ -217,14 +203,6 @@ public:
                 continue;
             }
 
-//            /************************/
-//            NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether,
-//                                                        dst_ether, start_seq, last_ack,
-//                                                        static_cast<uint16_t>(payload.size()));
-//            printf("blocked(%u)\n", src_sock.port);
-//            kill();
-//            continue;
-//            /************************/
 
             if (que.get()->size() == 0) {
                 continue;
@@ -235,7 +213,6 @@ public:
             Result res = reassemble(move(data));
 
             if (res == Result::complete) {
-                //LogManager::getInstance().log("complete");
                 std::string server_name = getServerName();
 
                 if (CheckManager::getInstance().isBlocked(server_name)) {
@@ -243,17 +220,15 @@ public:
                     NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether,
                                                                 dst_ether, start_seq, last_ack,
                                                                 static_cast<uint16_t>(payload.size()));
-                    LogManager::getInstance().log("Server name : (" + server_name + ") Blocked");
+                    LogManager::getInstance().log("Server name : (" + server_name + ") Blocked " + std::to_string(src_sock.port));
                 } else {
                     LogManager::getInstance().log("Server name : (" + server_name + ") is not Blocked");
                 }
 
                 kill();
             } else if (res == Result::ignore) {
-                //LogManager::getInstance().log("ignore");
                 kill();
             } else if (res == Result::error) {
-                LogManager::getInstance().log("error");
                 kill();
             } else if (res == Result::wait) {
 

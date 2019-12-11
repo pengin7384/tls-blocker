@@ -11,7 +11,7 @@ class LogManager : public Singleton<LogManager> {
 public:
     void log(std::string str)
     {
-        //std::lock_guard<std::mutex> guard(mtx);
+        std::lock_guard<std::mutex> guard(mtx);
         std::cout << str.c_str() << std::endl;
     }
 

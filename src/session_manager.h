@@ -9,7 +9,6 @@
 
 class SessionManager {
     std::shared_ptr<MutexMap<SockAddr, std::shared_ptr<Session>>> ses_map;
-    uint64_t drop_cnt = 0;
 
 public:
     SessionManager() {
@@ -25,23 +24,13 @@ public:
 
     void add(std::unique_ptr<TcpData> data) {
 
-        //printf("map_size:%lu\n", ses_map.get()->size());
-
         if (data.get()->tcp_syn) {
-            if (ses_map.get()->size() > 200) {
-                drop_cnt++;
-                printf("drop:%lu\n", drop_cnt);
+
+            /* Load balancing */
+            if (ses_map.get()->size() > 30) {
                 return;
             }
-           // printf("syn:(%u)\n", data.get()->src_sock.port);
-//            printf("size:%ld\n", ses_map->size());
-//            static int cnt = 0;
-//            if (cnt <= 5) {
-//                cnt++;
-//            } else {
 
-//                return;
-//            }
             SockAddr src_addr = data.get()->src_sock;
             auto it = ses_map.get()->find(src_addr);
 
@@ -52,7 +41,6 @@ public:
                 /* TODO: Need to delete already existed session from ses_map */
                 ses_map.get()->erase(it);
 
-                LogManager::getInstance().log("already!");
             }
 
             std::shared_ptr<Session> ses = std::make_shared<Session>(std::move(data),
@@ -74,12 +62,7 @@ public:
 
             std::shared_ptr<MutexQueue<std::unique_ptr<TcpData>>> ses_que = it->second->getQueue();
             ses_que.get()->push(move(data));
-
-
         }
-
-
-
 
     }
 
