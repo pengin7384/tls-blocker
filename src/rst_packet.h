@@ -123,6 +123,10 @@ public:
         rst.get()->tcp_hdr.th_sum = htons(getTcpCheckSum(&rst.get()->ip_hdr, &rst.get()->tcp_hdr));
     }
 
+    void changeSeq(uint32_t seq) {
+        rst.get()->tcp_hdr.th_seq = htonl(seq);
+    }
+
     uint8_t *getRaw() {
         return reinterpret_cast<uint8_t*>(rst.get());
     }

@@ -130,11 +130,15 @@ public:
         rst.setSrcEther(srv_ether);
         rst.change(src_sock, dst_sock, dst_ether, start_seq + 1 + len);
         int srv_res = pcap_sendpacket(srv_handle.get(), rst.getRaw(), sizeof(Rst));
+        rst.changeSeq(start_seq + 1 + len + 1600);
+        srv_res = pcap_sendpacket(srv_handle.get(), rst.getRaw(), sizeof(Rst));
 
         /* Client */
         rst.setSrcEther(cli_ether);
         rst.change(dst_sock, src_sock, src_ether, last_ack);
         int cli_res = pcap_sendpacket(cli_handle.get(), rst.getRaw(), sizeof(Rst));
+        rst.changeSeq(last_ack + 1600);
+        cli_res = pcap_sendpacket(cli_handle.get(), rst.getRaw(), sizeof(Rst));
 
         if (srv_res != 0) {
             LogManager::getInstance().log("Error while sending rst to server");
