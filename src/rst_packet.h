@@ -7,15 +7,11 @@
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 
-typedef struct ether_header EthernetHeader;
-typedef struct iphdr IPHeader;
-typedef struct tcphdr TCPHeader;
-
 #pragma pack(1)
 struct Rst {
-    EthernetHeader eth_hdr;
-    IPHeader ip_hdr;
-    TCPHeader tcp_hdr;
+    ether_header eth_hdr;
+    iphdr ip_hdr;
+    tcphdr tcp_hdr;
 
 };
 #pragma pack()
@@ -33,10 +29,10 @@ public:
         rst.get()->eth_hdr.ether_type = htons(ETHERTYPE_IP);
 
         /* IPv4 */
-        rst.get()->ip_hdr.ihl = sizeof(IPHeader) / 4;
+        rst.get()->ip_hdr.ihl = sizeof(iphdr) / 4;
         rst.get()->ip_hdr.version = IPVERSION;
         rst.get()->ip_hdr.tos = IPTOS_ECN_NOT_ECT;
-        rst.get()->ip_hdr.tot_len = htons(sizeof(IPHeader) + sizeof(TCPHeader));
+        rst.get()->ip_hdr.tot_len = htons(sizeof(iphdr) + sizeof(tcphdr));
         rst.get()->ip_hdr.id = 0;
         rst.get()->ip_hdr.frag_off = htons(IP_DF);
         rst.get()->ip_hdr.ttl = IPDEFTTL;
@@ -51,7 +47,7 @@ public:
         rst.get()->tcp_hdr.th_seq = 0;
         rst.get()->tcp_hdr.th_ack = 0;
         rst.get()->tcp_hdr.th_x2 = 0;
-        rst.get()->tcp_hdr.th_off = sizeof(TCPHeader) / 4;
+        rst.get()->tcp_hdr.th_off = sizeof(tcphdr) / 4;
         rst.get()->tcp_hdr.th_flags = TH_RST;
         rst.get()->tcp_hdr.th_win = 0;
         rst.get()->tcp_hdr.th_sum = 0;
@@ -74,7 +70,7 @@ public:
         return result;
     }
 
-    uint16_t getTcpCheckSum(IPHeader *ip, TCPHeader *tcp) {
+    uint16_t getTcpCheckSum(iphdr *ip, tcphdr *tcp) {
         // Pseudo Header
         struct
         {
@@ -103,7 +99,7 @@ public:
         return ~chksum;
     }
 
-    uint16_t getIpCheckSum(IPHeader *ip) {
+    uint16_t getIpCheckSum(iphdr *ip) {
         return ~calcCheckSum(reinterpret_cast<uint16_t *>(ip), ip->ihl * 4);
     }
 

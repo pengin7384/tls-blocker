@@ -14,10 +14,6 @@
 #include <string>
 #include <vector>
 
-typedef struct ether_header EthernetHeader;
-typedef struct iphdr IPHeader;
-typedef struct tcphdr TCPHeader;
-
 class NetworkManager : public Singleton<NetworkManager>  {
     char err_buf[PCAP_ERRBUF_SIZE];
     const char *tcp_ssl_filter = "ip proto TCP and dst port 443";
@@ -76,8 +72,8 @@ public:
         }
 
         pcap_pkthdr *header = nullptr;
-        const EthernetHeader *eth_header = nullptr;
-        const IPHeader *ip_header = nullptr;
+        const ether_header *eth_header = nullptr;
+        const iphdr *ip_header = nullptr;
         const uint8_t *packet = nullptr;
 
         for (int res = 0; res == 0;) {
@@ -86,8 +82,8 @@ public:
             if (res < 0)
                 return nullptr;
 
-            eth_header = reinterpret_cast<const EthernetHeader *>(packet);
-            ip_header = reinterpret_cast<const IPHeader *>(packet + sizeof(EthernetHeader));
+            eth_header = reinterpret_cast<const ether_header *>(packet);
+            ip_header = reinterpret_cast<const iphdr *>(packet + sizeof(ether_header));
 
             if (ntohs(eth_header->ether_type) != ETHERTYPE_IP ||
                     ip_header->protocol != IPPROTO_TCP) {
@@ -96,8 +92,8 @@ public:
 
         }
 
-        const TCPHeader *tcp_header = reinterpret_cast<const TCPHeader *>(packet
-                                                                   + sizeof(EthernetHeader)
+        const tcphdr *tcp_header = reinterpret_cast<const tcphdr *>(packet
+                                                                   + sizeof(ether_header)
                                                                    + (ip_header->ihl * 4));
 
         if (ntohs(tcp_header->dest) != 443) {
@@ -105,7 +101,7 @@ public:
         }
 
         const uint8_t *payload = reinterpret_cast<const uint8_t *>(packet
-                                                                   + sizeof(EthernetHeader)
+                                                                   + sizeof(ether_header)
                                                                    + (ip_header->ihl * 4)
                                                                    + (tcp_header->doff * 4));
         const uint32_t payload_len = ntohs(ip_header->tot_len) - (ip_header->ihl * 4) - (tcp_header->doff * 4);
