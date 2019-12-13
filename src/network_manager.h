@@ -18,29 +18,32 @@ class NetworkManager : public Singleton<NetworkManager>  {
     char err_buf[PCAP_ERRBUF_SIZE];
     const char *tcp_ssl_filter = "ip proto TCP and dst port 443";
     std::shared_ptr<pcap_t> in_handle;
-    std::shared_ptr<pcap_t> out_handle;
+    std::shared_ptr<pcap_t> cli_handle;
+    std::shared_ptr<pcap_t> srv_handle;
     std::mutex in_mtx;
     std::mutex out_mtx;
-    RstPacket rst;
-    EtherAddr out_ether;
+    //RstPacket rst;
+    EtherAddr cli_ether;
+    EtherAddr srv_ether;
 
 public:
     ~NetworkManager() {
 
     }
 
-    void setInterface(std::string in, std::string out)
+    void setInterface(std::string in_if, std::string cli_if, std::string srv_if)
     {
         /* Open pcap handle */
-        if (in.empty() || out.empty()) {
+        if (in_if.empty() || cli_if.empty() || srv_if.empty()) {
             LogManager::getInstance().log("Interface Error");
             return;
         }
 
-        in_handle.reset(pcap_open_live(in.c_str(), BUFSIZ, 1, 1, err_buf), pcap_close);
-        out_handle.reset(pcap_open_live(out.c_str(), BUFSIZ, 1, 1, err_buf), pcap_close);
+        in_handle.reset(pcap_open_live(in_if.c_str(), BUFSIZ, 1, 1, err_buf), pcap_close);
+        cli_handle.reset(pcap_open_live(cli_if.c_str(), BUFSIZ, 1, 1, err_buf), pcap_close);
+        srv_handle.reset(pcap_open_live(srv_if.c_str(), BUFSIZ, 1, 1, err_buf), pcap_close);
 
-        if (in_handle.get() == nullptr || out_handle.get() == nullptr) {
+        if (in_handle.get() == nullptr || cli_handle.get() == nullptr || srv_handle.get() == nullptr) {
             LogManager::getInstance().log("Error while opening handle");
             return;
         }
@@ -59,8 +62,9 @@ public:
 
         /**********/
 
-        out_ether = EtherAddr(out);
-        rst.setSrcEther(out_ether);
+        cli_ether = EtherAddr(cli_if);
+        srv_ether = EtherAddr(srv_if);
+        //rst.setSrcEther(out_ether);
     }
 
     std::unique_ptr<TcpData> recv() {
@@ -118,19 +122,29 @@ public:
     }
 
     void sendRstPacket(const SockAddr &src_sock, const SockAddr &dst_sock, const EtherAddr &src_ether, const EtherAddr &dst_ether, uint32_t start_seq, uint32_t last_ack, uint16_t len) {
-        std::lock_guard<std::mutex> guard(out_mtx);
+        //std::lock_guard<std::mutex> guard(out_mtx);
+        RstPacket rst;
 
-//        if (!out_handle) {
-//            LogManager::getInstance().log("Error : Output Interface is nullptr");
-//            return;
-//        }
 
         /* Server */
+        rst.setSrcEther(srv_ether);
         rst.change(src_sock, dst_sock, dst_ether, start_seq + 1 + len);
-        pcap_sendpacket(out_handle.get(), rst.getRaw(), sizeof(Rst));
+        int srv_res = pcap_sendpacket(srv_handle.get(), rst.getRaw(), sizeof(Rst));
 
+        /* Client */
+        rst.setSrcEther(cli_ether);
         rst.change(dst_sock, src_sock, src_ether, last_ack);
-        pcap_sendpacket(out_handle.get(), rst.getRaw(), sizeof(Rst));
+        int cli_res = pcap_sendpacket(cli_handle.get(), rst.getRaw(), sizeof(Rst));
+
+        if (srv_res != 0) {
+            LogManager::getInstance().log("Error while sending rst to server");
+        }
+
+        if (cli_res != 0) {
+            LogManager::getInstance().log("Error while sending rst to client");
+        }
+
+
 
     }
 };

@@ -10,8 +10,8 @@ class Blocker {
     SessionManager ses_mng;
 
 public:
-    Blocker(std::string file, std::string in, std::string out) {
-        NetworkManager::getInstance().setInterface(in, out);
+    Blocker(std::string file, std::string in_if, std::string cli_if, std::string srv_if) {
+        NetworkManager::getInstance().setInterface(in_if, cli_if, srv_if);
 
         CheckManager::getInstance().update(file);
     }
