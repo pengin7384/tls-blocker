@@ -2,8 +2,9 @@
 
 #include <cstdint>
 #include <cstring>
+#include <netinet/ether.h>
 #include <linux/if.h>
-#include <linux/if_ether.h>
+//#include <linux/if_ether.h>
 #include <string>
 #include <sys/ioctl.h>
 #include <unistd.h>
