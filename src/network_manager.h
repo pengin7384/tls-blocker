@@ -6,10 +6,10 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <netinet/ether.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <netinet/tcp.h>
+//#include <netinet/ether.h>
+//#include <netinet/in.h>
+//#include <netinet/ip.h>
+//#include <netinet/tcp.h>
 #include <pcap/pcap.h>
 #include <string>
 #include <vector>

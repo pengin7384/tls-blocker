@@ -3,7 +3,7 @@
 #include <cstring>
 #include <memory>
 #include <netinet/ether.h>
-#include <netinet/in.h>
+//#include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 
