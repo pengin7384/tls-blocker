@@ -12,7 +12,9 @@
 #include <netinet/tcp.h>
 #include <pcap/pcap.h>
 #include <string>
+#include <unistd.h>
 #include <vector>
+
 
 class NetworkManager : public Singleton<NetworkManager>  {
     char err_buf[PCAP_ERRBUF_SIZE];
@@ -70,10 +72,12 @@ public:
     std::unique_ptr<TcpData> recv() {
         //std::lock_guard<std::mutex> guard(in_mtx);
 
-        if (!in_handle) {
+        if (!in_handle.get()) {
             LogManager::getInstance().log("Error : Input Interface is nullptr");
             return nullptr;
         }
+
+        puts("1");
 
         pcap_pkthdr *header = nullptr;
         const ether_header *eth_header = nullptr;
@@ -82,24 +86,32 @@ public:
 
         for (int res = 0; res == 0;) {
             std::lock_guard<std::mutex> guard(in_mtx);
+
             res = pcap_next_ex(in_handle.get(), &header, &packet);
+
             if (res < 0)
                 return nullptr;
 
-            eth_header = reinterpret_cast<const ether_header *>(packet);
-            ip_header = reinterpret_cast<const iphdr *>(packet + sizeof(ether_header));
-
-            if (ntohs(eth_header->ether_type) != ETHERTYPE_IP ||
-                    ip_header->protocol != IPPROTO_TCP) {
-                res = 0;
+            if (res == 0) {
+                continue;
             }
 
+            eth_header = reinterpret_cast<const ether_header *>(packet);
+            if (ntohs(eth_header->ether_type) != ETHERTYPE_IP) {
+                res = 0;
+                continue;
+            }
+
+            ip_header = reinterpret_cast<const iphdr *>(packet + sizeof(ether_header));
+            if (ip_header->protocol != IPPROTO_TCP) {
+                res = 0;
+                continue;
+            }
         }
 
         const tcphdr *tcp_header = reinterpret_cast<const tcphdr *>(packet
                                                                    + sizeof(ether_header)
                                                                    + (ip_header->ihl * 4));
-
         if (ntohs(tcp_header->dest) != 443) {
             return nullptr;
         }
@@ -147,9 +159,34 @@ public:
         if (cli_res != 0) {
             LogManager::getInstance().log("Error while sending rst to client");
         }
+    }
 
 
+    void sendRstPacket2(const SockAddr &src_sock, const SockAddr &dst_sock, const EtherAddr &src_ether, const EtherAddr &dst_ether, uint32_t start_seq, uint32_t last_ack, uint16_t len) {
+        //std::lock_guard<std::mutex> guard(out_mtx);
+        RstPacket rst;
 
+        /* Client */
+        rst.setSrcEther(cli_ether);
+        rst.change(dst_sock, src_sock, src_ether, last_ack);
+        int cli_res = pcap_sendpacket(cli_handle.get(), rst.getRaw(), sizeof(Rst));
+        rst.changeSeq(last_ack + 1600);
+        cli_res = pcap_sendpacket(cli_handle.get(), rst.getRaw(), sizeof(Rst));
+
+        /* Server */
+        rst.setSrcEther(srv_ether);
+        rst.change(src_sock, dst_sock, dst_ether, start_seq + 1 + len);
+        int srv_res = pcap_sendpacket(srv_handle.get(), rst.getRaw(), sizeof(Rst));
+        rst.changeSeq(start_seq + 1 + len + 1600);
+        srv_res = pcap_sendpacket(srv_handle.get(), rst.getRaw(), sizeof(Rst));
+
+        if (srv_res != 0) {
+            LogManager::getInstance().log("Error while sending rst to server");
+        }
+
+        if (cli_res != 0) {
+            LogManager::getInstance().log("Error while sending rst to client");
+        }
     }
 };
 

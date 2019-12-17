@@ -60,8 +60,16 @@ public:
                 return;
             }
 
-            std::shared_ptr<MutexQueue<std::unique_ptr<TcpData>>> ses_que = it->second->getQueue();
-            ses_que.get()->push(move(data));
+            if (it->second->checkBlock() == true && data.get()->payload.size() > 0) {
+                uint16_t port = data.get()->src_sock.port;
+                it->second->sendRst(move(data));
+                printf("Send RST from session manager(%u)\n", port);
+                return;
+            } else {
+                std::shared_ptr<MutexQueue<std::unique_ptr<TcpData>>> ses_que = it->second->getQueue();
+                ses_que.get()->push(move(data));
+            }
+
         }
 
     }

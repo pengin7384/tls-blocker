@@ -17,8 +17,13 @@ public:
     }
 
     void start() {
+        LogManager::getInstance().log("Block Start");
         while (true) {
-            std::unique_ptr<TcpData> data = NetworkManager::getInstance().recv();
+
+            //NetworkManager::getInstance();
+
+            std::unique_ptr<TcpData> data = NetworkManager::getInstance().recv(); // Seg fault
+            continue;
 
             if (!data)
                 continue;

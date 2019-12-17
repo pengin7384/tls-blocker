@@ -14,6 +14,11 @@
 #include <thread>
 #include <vector>
 
+#include <sys/socket.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <unistd.h>
+
 #define BUF_SIZE 1600
 
 
@@ -49,6 +54,7 @@ class Session {
     uint32_t cnt;
 
     int64_t recv_cnt;
+    std::atomic<bool> block_flag;
 
 public:
     Session() = delete;
@@ -66,6 +72,8 @@ public:
         target_len = -1;
         cnt = 0;
         recv_cnt = 0;
+
+        block_flag.store(false);
     }
 
     ~Session() {
@@ -80,6 +88,9 @@ public:
         return que;
     }
 
+    bool checkBlock() {
+        return block_flag.load();
+    }
 
     Result reassemble(std::unique_ptr<TcpData> data) {
 
@@ -146,10 +157,59 @@ public:
         } else if (recv_cnt == target_len) {
             return Result::complete;
         } else {
-            LogManager::getInstance().log("Error: RecvLen > TargetLen");
+//            block_flag.store(true);
+//            LogManager::getInstance().log("Error: RecvLen > TargetLen");
+//            printf("recv:%lu, target:%lu (%u)\n", recv_cnt, target_len, src_sock.port);
+//            usleep(1000);
+            return Result::complete;
             return Result::error;
         }
 
+    }
+
+    int changeSupportedVersions() {
+        uint32_t len = payload[5 + 1] * 256 * 256 + payload[5 + 2] * 256 + payload[5 + 3];
+        uint32_t index = 0;
+
+        /* Session Length */
+        index += 39 + payload[5 + 38];
+
+        /* Cipher Suites Length */
+        index += 2 + payload[5 + index] * 256 + payload[5 + index + 1];
+
+        /* Compression Methods Length */
+        index += 1 + payload[5 + index];
+
+        /* Extensions Length */
+        index += 2;
+
+        bool change_version = false;
+
+        while (index < len) {
+            /* Supported Versions */
+            if (payload[5 + index] == 0x00 && payload[5 + index + 1] == 0x2b) {
+                uint16_t len = payload[5 + index + 2] * 256 + payload[5 + index + 3];
+                for (uint16_t i = 0; i < len; i+=2) {
+                    if (payload[5 + index + 5 + i] == 0x03 && payload[5 + index + 5 + i + 1] == 0x04) {
+                        payload[5 + index + 5 + i + 1] = 0x03;
+                        change_version = true;
+                    }
+                }
+            }
+            /* ESNI */
+            else if (payload[5 + index] == 0xff && payload[5 + index + 1] == 0xce) {
+                if (change_version) {
+//                    payload[5 + index + 66] = 0x1;
+//                    payload[5 + index + 67] = 0x2;
+                    return 1;
+                }
+            }
+
+            index += 2;
+
+            index += 2 + payload[5 + index] * 256 + payload[5 + index + 1];
+        }
+        return 0;
     }
 
     /* TODO: change style */
@@ -188,6 +248,31 @@ public:
         return "";
     }
 
+    int findDomain(const uint8_t *data, size_t data_len, const char *target) {
+        for (size_t i = 0; i < data_len; i++) {
+            size_t j = 0;
+            bool flag = false;
+            while (target[j] != 0) {
+                if ((i + j) >= data_len) {
+                    break;;
+                }
+                if (data[i + j] != target[j]) {
+                    break;;
+                }
+                j++;
+                if (target[j] == 0) {
+                    flag = true;
+                    break;
+                }
+            }
+            if (flag == true) {
+                return 1;
+            }
+
+        }
+        return 0;
+    }
+
     void process() {
 
         while (true) {
@@ -198,7 +283,7 @@ public:
 
             /* TODO: Change cnt to time */
             if (cnt++ > 20000000) {
-                LogManager::getInstance().log("Time out");
+                LogManager::getInstance().log("Time out " + std::string());
                 kill();
                 continue;
             }
@@ -213,17 +298,82 @@ public:
             Result res = reassemble(move(data));
 
             if (res == Result::complete) {
-                std::string server_name = getServerName();
+//                std::string server_name = getServerName();
 
-                if (CheckManager::getInstance().isBlocked(server_name)) {
+//                if (CheckManager::getInstance().isBlocked(server_name)) {
 
-                    NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether,
-                                                                dst_ether, start_seq, last_ack,
-                                                                static_cast<uint16_t>(payload.size()));
-                    LogManager::getInstance().log("Server name : (" + server_name + ") Blocked " + std::to_string(src_sock.port));
-                } else {
-                    LogManager::getInstance().log("Server name : (" + server_name + ") is not Blocked");
+//                    NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether,
+//                                                                dst_ether, start_seq, last_ack,
+//                                                                static_cast<uint16_t>(payload.size()));
+//                    LogManager::getInstance().log("Server name : (" + server_name + ") Blocked " + std::to_string(src_sock.port));
+//                } else {
+//                    LogManager::getInstance().log("Server name : (" + server_name + ") is not Blocked");
+//                }
+                int esni_check = changeSupportedVersions();
+
+                if (esni_check == 1) {
+                    /* Send client hello to server */
+
+                    int sock = socket(PF_INET, SOCK_STREAM, 0);
+                    if (sock == -1) {
+                        LogManager::getInstance().log("socket error");
+                    }
+
+                    sockaddr_in addr;
+                    addr.sin_family = AF_INET;
+                    addr.sin_port = htons(443);
+                    addr.sin_addr.s_addr = htonl(dst_sock.ip);
+
+                    if (connect(sock, (sockaddr*)&addr, sizeof(addr)) == -1) {
+                        LogManager::getInstance().log("connect error");
+                    }
+
+                    size_t tot_send_size = 0;
+                    while (tot_send_size < payload.size()) {
+                        //printf("tot:%u, send:%u\n", tot_send_size, sen)
+                        ssize_t send_size = send(sock, &payload.at(tot_send_size), payload.size() - tot_send_size, 0);
+                        if (send_size == -1) {
+                            LogManager::getInstance().log("send error");
+                            break;
+
+                        }
+                        tot_send_size += static_cast<size_t>(send_size);
+                    }
+
+                    uint8_t buf[8000];
+
+                    size_t tot_recv_size = 0;
+                    tot_recv_size = recv(sock, buf, 8000, 0);
+                    int result = findDomain(buf, tot_recv_size, "hellven.net");
+                    //int result = 1;
+                    if (result == 1) {
+                        block_flag.store(true); // Notice to session_manager
+
+                        uint32_t test_ack;
+                        uint16_t test_len;
+
+                        if (que->empty()) {
+                            test_ack = last_ack;
+                            test_len = static_cast<uint16_t>(payload.size());
+                        } else {
+                            std::unique_ptr<TcpData> last_data = que.get()->back();
+                            test_ack = last_data.get()->tcp_ack;
+                            test_len = static_cast<uint16_t>(last_data.get()->tcp_seq - start_seq + last_data.get()->payload.size() - 1);
+                        }
+
+                        NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether,
+                                                                    dst_ether, start_seq, test_ack,
+                                                                    test_len);
+                        printf("send rst!!(%u)\n", src_sock.port);
+                        printf("hellven.net blocked!\n");
+                        //                    NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether,
+                        //                                                                dst_ether, start_seq, last_ack,
+                        //                                                                static_cast<uint16_t>(payload.size()));
+                        usleep(100 * 1000);
+                    }
+
                 }
+
 
                 kill();
             } else if (res == Result::ignore) {
@@ -234,6 +384,29 @@ public:
 
             }
         }
+    }
+
+    void sendRst(std::unique_ptr<TcpData> data) {
+
+        NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether,
+                                                    dst_ether, start_seq, data.get()->tcp_ack,
+                                                    static_cast<uint16_t>(data.get()->tcp_seq - start_seq + data.get()->payload.size() - 1));
+
+//        uint32_t test_ack;
+//        uint16_t test_len;
+
+//        if (que->empty()) {
+//            test_ack = last_ack;
+//            test_len = static_cast<uint16_t>(payload.size());
+//        } else {
+//            std::unique_ptr<TcpData> last_data = que.get()->back();
+//            test_ack = last_data.get()->tcp_ack;
+//            test_len = static_cast<uint16_t>(last_data.get()->tcp_seq - start_seq + last_data.get()->payload.size() - 1);
+//        }
+
+//        NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether,
+//                                                    dst_ether, start_seq, test_ack,
+//                                                    test_len);
     }
 
     void kill() {

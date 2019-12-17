@@ -30,10 +30,10 @@ public:
         return move(que.front());
     }
 
-//    T back() {
-//        //std::lock_guard<std::mutex> guard(mtx);
-//        return move(que.back());
-//    }
+    T back() {
+        std::lock_guard<std::mutex> guard(mtx);
+        return move(que.back());
+    }
 
     void pop() {
         std::lock_guard<std::mutex> guard(mtx);
