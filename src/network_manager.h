@@ -86,6 +86,9 @@ public:
             if (res < 0)
                 return nullptr;
 
+            if (res == 0)
+                continue;
+
             eth_header = reinterpret_cast<const ether_header *>(packet);
             ip_header = reinterpret_cast<const iphdr *>(packet + sizeof(ether_header));
 
