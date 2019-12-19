@@ -23,7 +23,6 @@ public:
             //NetworkManager::getInstance();
 
             std::unique_ptr<TcpData> data = NetworkManager::getInstance().recv(); // Seg fault
-            continue;
 
             if (!data)
                 continue;

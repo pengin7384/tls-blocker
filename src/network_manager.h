@@ -77,8 +77,6 @@ public:
             return nullptr;
         }
 
-        puts("1");
-
         pcap_pkthdr *header = nullptr;
         const ether_header *eth_header = nullptr;
         const iphdr *ip_header = nullptr;
