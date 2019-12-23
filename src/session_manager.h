@@ -8,17 +8,17 @@
 #include <thread>
 
 class SessionManager {
-    std::shared_ptr<MutexMap<SockAddr, std::shared_ptr<Session>>> ses_map;
+    MutexMap<SockAddr, std::shared_ptr<Session>> ses_map;
 
 public:
     SessionManager() {
-        ses_map.reset(new MutexMap<SockAddr, std::shared_ptr<Session>>());
+        //ses_map.reset(new MutexMap<SockAddr, std::shared_ptr<Session>>());
     }
 
     void callbackErase(SockAddr key) {
-        auto it = ses_map.get()->find(key);
-        if (it != ses_map.get()->end()) {
-            ses_map.get()->erase(it); // If iterator is deleted then error?
+        auto it = ses_map.find(key);
+        if (it != ses_map.end()) {
+            ses_map.erase(it); // If iterator is deleted then error?
         }
     }
 
@@ -26,15 +26,15 @@ public:
         if (data.get()->tcp_syn) {
 
             /* Load balancing */
-            if (ses_map.get()->size() > 30) {
+            if (ses_map.size() > 30) {
                 LogManager::getInstance().log("Full");
                 return;
             }
 
             SockAddr src_addr = data.get()->src_sock;
-            auto it = ses_map.get()->find(src_addr);
+            auto it = ses_map.find(src_addr);
 
-            if (it != ses_map.get()->end()) {
+            if (it != ses_map.end()) {
                 /* TODO: Need to kill thread */
                 if (data->tcp_seq == it->second->getStartSeq()) {
                     return;
@@ -43,23 +43,23 @@ public:
                 it->second.get()->kill();
 
                 /* TODO: Need to delete already existed session from ses_map */
-                ses_map.get()->erase(it);
+                ses_map.erase(it);
 
             }
 
             std::shared_ptr<Session> ses = std::make_shared<Session>(std::move(data),
                                                                      std::bind(&SessionManager::callbackErase, this, std::placeholders::_1));
 
-            ses_map.get()->insert(src_addr, ses); 
+            ses_map.insert(src_addr, ses);
 
             /* Create thread */
             std::thread thr(&Session::process, ses);
             thr.detach();
 
         } else {
-            auto it = ses_map.get()->find(data.get()->src_sock);
+            auto it = ses_map.find(data.get()->src_sock);
 
-            if (it == ses_map.get()->end()) {
+            if (it == ses_map.end()) {
                 return;
             }
 
