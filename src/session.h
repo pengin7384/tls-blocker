@@ -220,6 +220,7 @@ public:
 
             if (res == Result::complete) {
                 std::string server_name = getServerName();
+                bool is_block = false;
 
                 if (CheckManager::getInstance().isBlocked(server_name)) {
 
@@ -227,13 +228,21 @@ public:
                     NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether,
                                                                 dst_ether, start_seq, last_ack,
                                                                 static_cast<uint16_t>(payload.size()));
-                    LogManager::getInstance().log("Server name : (" + server_name + ") Blocked " + std::to_string(src_sock.port));
+                    is_block = true;
+                }
+
+                if (server_name.length() > 30) {
+                    server_name = server_name.substr(0, 30) + "...";
+                }
+
+                if (is_block) {
+                    LogManager::getInstance().log("Blocked : (" + server_name + ")");
                     sleep(3);
                 } else {
-                    LogManager::getInstance().log("Server name : (" + server_name + ") is not Blocked");
+                    LogManager::getInstance().log("Unblocked : (" + server_name + ")");
                 }
-                kill();
 
+                kill();
             } else if (res == Result::ignore) {
                 kill();
             } else if (res == Result::error) {
