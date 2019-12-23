@@ -206,7 +206,7 @@ public:
             if (que.get()->empty()) {
                 if (std::chrono::system_clock::now() >= end_time) {
                     kill();
-                    LogManager::getInstance().log("Time out");
+                    //LogManager::getInstance().log("Time out");
                 } else {
                     usleep(10);
                 }
