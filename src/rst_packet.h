@@ -3,7 +3,6 @@
 #include <cstring>
 #include <memory>
 #include <netinet/ether.h>
-//#include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 
@@ -124,7 +123,9 @@ public:
     }
 
     void changeSeq(uint32_t seq) {
-        rst.get()->tcp_hdr.th_seq = htonl(seq);
+        rst->tcp_hdr.th_seq = htonl(seq);
+        rst->tcp_hdr.th_sum = 0;
+        rst->tcp_hdr.th_sum = htons(getTcpCheckSum(&rst->ip_hdr, &rst->tcp_hdr));
     }
 
     uint8_t *getRaw() {

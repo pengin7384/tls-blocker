@@ -20,7 +20,7 @@ public:
         while (true) {
             std::unique_ptr<TcpData> data = NetworkManager::getInstance().recv();
 
-            if (!data)
+            if (!data.get())
                 continue;
 
             ses_mng.add(move(data));

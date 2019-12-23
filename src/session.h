@@ -28,7 +28,7 @@ enum class Result { complete, wait, error, ignore };
 
 class Session {
     typedef std::function<void(SockAddr)> funcErase;
-
+    std::atomic<bool> block_flag;
     std::atomic<bool> die_flag;
     std::vector<uint8_t> payload;
     std::shared_ptr<MutexQueue<std::unique_ptr<TcpData>>> que;
@@ -46,8 +46,8 @@ class Session {
     std::bitset<5> flag_set;
     int64_t target_len;
 
-    uint32_t cnt;
-
+    //uint32_t cnt;
+    std::chrono::system_clock::time_point end_time = std::chrono::system_clock::now() + std::chrono::seconds(10);
     int64_t recv_cnt;
 
 public:
@@ -55,6 +55,7 @@ public:
 
     Session(std::unique_ptr<TcpData> ptr, funcErase callback) : die_flag(false)
     {
+        block_flag.store(false);
         payload.reserve(BUF_SIZE);
         que.reset(new MutexQueue<std::unique_ptr<TcpData>>(), freeQueue<std::unique_ptr<TcpData>>);
         this->callback = callback;
@@ -64,16 +65,20 @@ public:
         dst_ether = ptr.get()->dst_ether;
         start_seq = ptr.get()->tcp_seq;
         target_len = -1;
-        cnt = 0;
         recv_cnt = 0;
     }
 
     ~Session() {
     }
 
+    uint32_t getStartSeq()
+    {
+        return start_seq;
+    }
+
     template <typename T>
     static void freeQueue(MutexQueue<T> *target) {
-
+        delete target;
     }
 
     std::shared_ptr<MutexQueue<std::unique_ptr<TcpData>>> getQueue() {
@@ -191,23 +196,24 @@ public:
     void process() {
 
         while (true) {
+            /* Kill */
             if (die_flag.load()) {
                 callback(src_sock);
                 break;
             }
 
-            /* TODO: Change cnt to time */
-            if (cnt++ > 20000000) {
-                LogManager::getInstance().log("Time out");
-                kill();
+            /* Timeout */
+            if (que.get()->empty()) {
+                if (std::chrono::system_clock::now() >= end_time) {
+                    kill();
+                    LogManager::getInstance().log("Time out");
+                } else {
+                    usleep(10);
+                }
                 continue;
             }
 
-
-            if (que.get()->size() == 0) {
-                continue;
-            }
-
+            /* Reassemble */
             std::unique_ptr<TcpData> data = que.get()->front();
             que.get()->pop();
             Result res = reassemble(move(data));
@@ -217,15 +223,17 @@ public:
 
                 if (CheckManager::getInstance().isBlocked(server_name)) {
 
+                    block_flag.store(true);
                     NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether,
                                                                 dst_ether, start_seq, last_ack,
                                                                 static_cast<uint16_t>(payload.size()));
                     LogManager::getInstance().log("Server name : (" + server_name + ") Blocked " + std::to_string(src_sock.port));
+                    sleep(3);
                 } else {
                     LogManager::getInstance().log("Server name : (" + server_name + ") is not Blocked");
                 }
-
                 kill();
+
             } else if (res == Result::ignore) {
                 kill();
             } else if (res == Result::error) {
@@ -236,8 +244,20 @@ public:
         }
     }
 
+    void sendRst(std::unique_ptr<TcpData> data)
+    {
+        NetworkManager::getInstance().sendRstPacket(src_sock, dst_sock, src_ether,
+            dst_ether, start_seq, data->tcp_ack,
+            static_cast<uint16_t>(data->tcp_seq - start_seq + data->payload.size() - 1));
+    }
+
     void kill() {
         die_flag.store(true);
+    }
+
+    bool getBlockFlag()
+    {
+        return block_flag.load();
     }
 
     bool getDieFlag() {

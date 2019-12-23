@@ -23,11 +23,11 @@ public:
     }
 
     void add(std::unique_ptr<TcpData> data) {
-
         if (data.get()->tcp_syn) {
 
             /* Load balancing */
             if (ses_map.get()->size() > 30) {
+                LogManager::getInstance().log("Full");
                 return;
             }
 
@@ -36,6 +36,10 @@ public:
 
             if (it != ses_map.get()->end()) {
                 /* TODO: Need to kill thread */
+                if (data->tcp_seq == it->second->getStartSeq()) {
+                    return;
+                }
+
                 it->second.get()->kill();
 
                 /* TODO: Need to delete already existed session from ses_map */
@@ -49,9 +53,8 @@ public:
             ses_map.get()->insert(src_addr, ses); 
 
             /* Create thread */
-            std::thread thr { &Session::process, ses };
+            std::thread thr(&Session::process, ses);
             thr.detach();
-
 
         } else {
             auto it = ses_map.get()->find(data.get()->src_sock);
@@ -60,8 +63,16 @@ public:
                 return;
             }
 
-            std::shared_ptr<MutexQueue<std::unique_ptr<TcpData>>> ses_que = it->second->getQueue();
-            ses_que.get()->push(move(data));
+
+            if (it->second->getBlockFlag() == true && data->payload.size() > 0) {
+                /* If blocked session packet then send rst */
+                it->second->sendRst(move(data));
+                return;
+            } else {
+                std::shared_ptr<MutexQueue<std::unique_ptr<TcpData>>> ses_que = it->second->getQueue();
+                ses_que.get()->push(move(data));
+            }
+
         }
 
     }

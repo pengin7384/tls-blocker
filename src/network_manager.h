@@ -6,13 +6,11 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
-//#include <netinet/ether.h>
-//#include <netinet/in.h>
-//#include <netinet/ip.h>
-//#include <netinet/tcp.h>
 #include <pcap/pcap.h>
 #include <string>
 #include <vector>
+
+#define MAX_SIZE 8192
 
 class NetworkManager : public Singleton<NetworkManager>  {
     char err_buf[PCAP_ERRBUF_SIZE];
@@ -20,9 +18,7 @@ class NetworkManager : public Singleton<NetworkManager>  {
     std::shared_ptr<pcap_t> in_handle;
     std::shared_ptr<pcap_t> cli_handle;
     std::shared_ptr<pcap_t> srv_handle;
-    std::mutex in_mtx;
     std::mutex out_mtx;
-    //RstPacket rst;
     EtherAddr cli_ether;
     EtherAddr srv_ether;
 
@@ -39,9 +35,9 @@ public:
             return;
         }
 
-        in_handle.reset(pcap_open_live(in_if.c_str(), BUFSIZ, 1, 1, err_buf), pcap_close);
-        cli_handle.reset(pcap_open_live(cli_if.c_str(), BUFSIZ, 1, 1, err_buf), pcap_close);
-        srv_handle.reset(pcap_open_live(srv_if.c_str(), BUFSIZ, 1, 1, err_buf), pcap_close);
+        in_handle.reset(pcap_open_live(in_if.c_str(), MAX_SIZE, 1, 1, err_buf), pcap_close);
+        cli_handle.reset(pcap_open_live(cli_if.c_str(), MAX_SIZE, 1, 1, err_buf), pcap_close);
+        srv_handle.reset(pcap_open_live(srv_if.c_str(), MAX_SIZE, 1, 1, err_buf), pcap_close);
 
         if (in_handle.get() == nullptr || cli_handle.get() == nullptr || srv_handle.get() == nullptr) {
             LogManager::getInstance().log("Error while opening handle");
@@ -60,28 +56,17 @@ public:
             return;
         }
 
-        /**********/
-
         cli_ether = EtherAddr(cli_if);
         srv_ether = EtherAddr(srv_if);
-        //rst.setSrcEther(out_ether);
     }
 
     std::unique_ptr<TcpData> recv() {
-        //std::lock_guard<std::mutex> guard(in_mtx);
-
-        if (!in_handle) {
-            LogManager::getInstance().log("Error : Input Interface is nullptr");
-            return nullptr;
-        }
-
         pcap_pkthdr *header = nullptr;
         const ether_header *eth_header = nullptr;
         const iphdr *ip_header = nullptr;
         const uint8_t *packet = nullptr;
 
         for (int res = 0; res == 0;) {
-            std::lock_guard<std::mutex> guard(in_mtx);
             res = pcap_next_ex(in_handle.get(), &header, &packet);
             if (res < 0)
                 return nullptr;
@@ -91,12 +76,6 @@ public:
 
             eth_header = reinterpret_cast<const ether_header *>(packet);
             ip_header = reinterpret_cast<const iphdr *>(packet + sizeof(ether_header));
-
-            if (ntohs(eth_header->ether_type) != ETHERTYPE_IP ||
-                    ip_header->protocol != IPPROTO_TCP) {
-                res = 0;
-            }
-
         }
 
         const tcphdr *tcp_header = reinterpret_cast<const tcphdr *>(packet
@@ -125,9 +104,7 @@ public:
     }
 
     void sendRstPacket(const SockAddr &src_sock, const SockAddr &dst_sock, const EtherAddr &src_ether, const EtherAddr &dst_ether, uint32_t start_seq, uint32_t last_ack, uint16_t len) {
-        //std::lock_guard<std::mutex> guard(out_mtx);
         RstPacket rst;
-
 
         /* Server */
         rst.setSrcEther(srv_ether);
